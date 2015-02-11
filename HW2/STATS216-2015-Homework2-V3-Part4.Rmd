@@ -1,0 +1,230 @@
+---
+title: "STATS216-Homework2"
+author: "Darragh Hanley"
+date: "Saturday, February 07, 2015"
+output: html_document
+---
+
+#### (4) Teamed up with Sevvandi Kandanaarachchi, Tony Wu and Andrew Beckerman for this challenge.
+##### (a) Fit the logistic regression model above to the data and examine the rankings. What happened to make both the team saint-mary-saint-mary and the team st.-thomas-(tx)-celts look so good? Can you explain it in terms of your answers to the first question in this problem set?
+
+First we shall load the NACC data set and pull out all teams to a variable sorted by name.
+```{r}
+games <- read.csv("http://www.stanford.edu/~wfithian/games.csv",as.is=TRUE)
+teams <- read.csv("http://www.stanford.edu/~wfithian/teams.csv",as.is=TRUE)
+all.teams <- sort(unique(c(teams$team,games$home,games$away)))
+```
+
+Next we assign a variable for each game to indicate whether the home team won or not.
+(My learning here is Basketball does not allow tied games like soccer). Initialise a data frame of the games(rows) and teams (columns), indicating for each game which teams were home or away. 
+
+
+```{r}
+### Assign score win or loss to vector z. This will be used a response in the model.
+z <- with(games, ifelse(homeScore>awayScore,1,0))
+X0 <- as.data.frame(matrix(0,nrow(games),length(all.teams)))
+names(X0) <- all.teams
+# Assign to the data frame for each game which team was home or away
+for(tm in all.teams) {
+  X0[[tm]] <- 1*(games$home==tm) - 1*(games$away==tm)
+}
+```
+
+Remove stanford's column to make it the baseline team against which other teams will be compared. Create the index of regular season games and assign a homeadvantage coefficient which is common to all games.
+```{r}
+X <- X0[,names(X0) != "stanford-cardinal"]
+reg.season.games <- which(games$gameType=="REG")
+homeAdv <- 1 - games$neutralLocation
+```
+
+
+Perform out the logistic regression on the regular season games with the home advantage coefficient. Extract from this the top 25 teams. 
+From this we can see clearly that the team saint-mary-saint-mary and the team st.-thomas-(tx)-celts look very good in comparison to other teams. Now we will eplore these teams a 
+
+```{r}
+logrega.mod <- glm(z ~ 0 + homeAdv + ., data=X, family=binomial, subset=reg.season.games)
+margin.top25 <- order(coef(summary(logrega.mod))[,1],decreasing=TRUE)[1:25]
+coef(summary(logrega.mod))[margin.top25,1]
+```
+
+
+Now we will explore these two teams.
+We draw up a table of the two top teams, how many games they were in as home and away. It can be seen that both team only played 1 away game.
+```{r}
+table(X[,c("saint-mary-saint-mary","st.-thomas-(tx)-celts")])
+```
+
+In addition it can be seen that both teams one their game which they played.
+```{r}
+bool.condition.1=games$home=="saint-mary-saint-mary"|games$away=="saint-mary-saint-mary"
+games[bool.condition.1,]
+```
+
+```{r}
+bool.condition.2=games$home=="st.-thomas-(tx)-celts"|games$away=="st.-thomas-(tx)-celts"
+games[bool.condition.2,]
+```
+
+We saw in question 1b, when the classes are well-separated, the parameter estimates for the logistic regression model are surprisingly unstable. And I believe here we have such a case where a team only played an away game and had no losses.
+
+I believe the reason we are seeing such high \(\beta\) for the two teams, looking at the formula for the logistic model, because the data suggests that the home team will almost certainly lose against them as the away team (p almost 0), which requires \(\beta_away\) to be extremely high in that scenario, and that they as the home team will almost certainly win against the opponent (p almost 1), which requires \(\beta_home\) to be extremely high in that scenario. 
+
+#### (b) Get rid of teams that played less than five games and refit the model. Make a rank table like the ones we made in class, where you compare the logistic regression rankings to the linear regression rankings, the AP Rankings, and the USA Today rankings. Which model seems to correspond better to the voters' decisions, the linear regression or logistic regression?
+
+
+In order to excude teams other than Stanford (our baseline for linear modelling), we have two options. Exclude the teams (columns), but leave their games (like was done for Stanford). Or exclude the games they played in. I have chosen the latter for two reasons. 1) Standofrd was our baseline by removing the team columns; this baseline will no longer be valid if many other team columns are excluded. 2) If low game teams are excluded, hoever their games are left in - the opposition's result (win or lose) will still be available as a predictor; however the strength of the low playing team they played will be lost. 
+For logistic regression, using either approach, there are minor differences seen in the ranking result, however for the above reasons we will go with excluding the games of these low playing teams (ie. excluding rows).
+
+We start by adding to table "games" a column of the minimum number of games played by either team. We will concentrate on regular season games only.
+
+```{r}
+# Collect all teams to one variable
+teamplays <- table(c(games$home, games$away))
+# for each regular season game, add a new variable to games representing the lowest number of games played by either team
+games$mingames[reg.season.games] <- vapply(reg.season.games, function(i) {
+  min(
+    teamplays[names(teamplays)==games$away[i]],
+    teamplays[names(teamplays)==games$home[i]]
+  ) 
+}, 1)  
+### Create a subset index on both regular season games and games played by non-low play frequency teams
+subset.vector <- which(games$gameType=="REG" & games$mingames >= 5)
+```
+
+Now we perform both the logistic regression and linear model with with the same index. For each we pull out the coefficients which they assigned to each team. These are then added to a table of rankings, where we compare each model to the AP Rankings, and the USA Today rankings.
+
+```{r}
+### Perform the logistic regression excluding teams with 5 games or less and non regular season games
+logregb.mod <- glm(z ~ 0 + homeAdv + ., data=X, family=binomial, subset=subset.vector)
+logregb.coef <- coef(logregb.mod)[paste("`",teams$team,"`",sep="")]
+names(logregb.coef) <- teams$team
+
+### Calculate the Linear Model from class, change the variable names
+y <- with(games, homeScore-awayScore)
+homeAdvlm <- 1 - games$neutralLocation
+lmb.mod <- lm(y ~ 0 + homeAdvlm + ., data=X, subset=subset.vector)
+lmb.coef <- coef(lmb.mod)[paste("`",teams$team,"`",sep="")]
+names(lmb.coef) <- teams$team
+
+### Create the ranking table. To fit the table rows on one line, we exclude the coefficient scoring.
+rank.table <- cbind(
+#                    "lm Score" = lmb.coef,
+                    "lm Rank"  = rank(-lmb.coef,ties="min"),
+#                    "logreg Score" = logregb.coef,
+                    "logreg Rank"  = rank(-logregb.coef,ties="min"),
+                    "AP Rank"     = teams$apRank,
+                    "USAT Rank"   = teams$usaTodayRank)
+rank.table[order(logregb.coef,decreasing=TRUE)[1:25],]
+```
+
+It can be seen that the logistic regression fits very well compared to the AP and USA today rankings. The linear model does not perform as well as logistic regression, however given the number of games and teams involved, this also performs well.
+
+#### (c) When we ignore the actual value of yi and instead only use whether yi > 0, we are discarding information, so we might expect our model standard errors to be larger relative to the effect sizes. If we use the linear regression model, for what fraction of teams are we confident (p < 0.05) that the team is better (or worse) than Stanford? For what fraction are we confident if we instead use the logistic regression model? 
+
+Stanford is our one "special" baseline team j and require where \(\beta_j\) = 0. All other team coefficients are measured with respect to a Stanford coefficient of 0. 
+As can be seen in the plot below, as the Coefficient/Slope Estimate reaches closer to the baseline of 0 for Stanford, the p-value of the team beating stanford increases (ie. the probability of a certain outcome decreses).
+
+```{r}
+par(mfrow=c(1,2))
+plot(coef(summary(lmb.mod))[-1,1], coef(summary(lmb.mod))[-1,4], xlab="Slope Estimate (Linear Model)", ylab= "p-value of performance", col="blue")
+abline(h = .05, col = "red")
+abline(v = 0, lty=2)
+text(-30,.07, "p-value = 0.05", col = "red")
+plot(coef(summary(logregb.mod))[-1,1], coef(summary(logregb.mod))[-1,4],xlab="Slope Estimate (Logistic Reg.)", ylab= "p-value of performance", col="blue")
+abline(h = .05, col = "red")
+abline(v = 0, lty=2)
+mtext("Team coefficients with respect to Stanford", outer = TRUE, cex = 1.5)
+```
+
+Notice on the above logistic regression chart, we have one outlier with a high p-value although a coefficient very far from stanford. This team is `grambling-state-tigers` which lost all of there 28 games. This leads to perfectly separated classes which we know logistic regression does not handle well.
+
+To determine what fraction of teams we are confident (p < 0.05) that the team is better (or worse) than Stanford, we first must determine which teams we have confidence for, and which teams not. This is indicated below, using "Y" for confidence, and "N" for no confidence.
+
+```{r}
+# "Y" for confidence, and "N" for no confidence that the team is better (or worse) than Stanford
+linmod_pvalue <- (ifelse(coef(summary(lmb.mod))[,4]<.05,"Confidence", "No Confidence"))
+logreg_pvalue <- (ifelse(coef(summary(logregb.mod))[,4]<.05,"Confidence", "No Confidence"))
+```
+
+The following table shows the proportion of records for the linear model where we have confidence or not :
+```{r}
+# Output a table showing the proportion of cases where we have confidence, and those with no conifdence that teams would win or lose against Stanford for the linear model.
+table(linmod_pvalue)/length(linmod_pvalue)
+```
+
+The following table shows the proportion of records for the logistic regression model where we have confidence or not :
+```{r}
+# Output a table showing the proportion of cases where we have confidence, and those with no conifdence that teams would win or lose against Stanford for the logistic regression model.
+table(logreg_pvalue) /length(logreg_pvalue)  
+```
+
+As can be seen, for individual games, there is higher conifdence of wins or losses with linear modelling. For logistic regression, we do not pick up score differentials in the model, therefore we would have less confidence in the individual game wins. Linear model uses score differentials so gives more confidence of individual wins.
+
+#### (d) use ten-fold cross-validation to estimate the test error rate for these predictions, and also try to determine whether one model is better than the other. For each game in a given test set, there are four possible outcomes: both models are right in their prediction, both are wrong, only logistic regression is right, or only linear regression is right. Make a 2*2 contingency table displaying how often each of these four outcomes occur, over all the test examples in all ten folds of cross-validation.
+
+In order to optimise the splitting of games into folds we will use the library caret. In createFolds(), the random sampling is done within the levels of y (home games teams) in an attempt to balance the class distributions within the splits. We can ensure no one team is disproportionally placed in one fold. The result of this would be when this fold is the train set, the other 9 folds would have inufficient data to make a god prediction for the team. Ideally, we would also consider away game teams in this split, however there was insufficient time to find such a method. 
+
+```{r message=FALSE, warning=FALSE}
+set.seed(1)
+# First we define a matrix to hold predicted coeffients per team.
+coefficients = matrix(,nrow=nrow(games), ncol=4) 
+### Create an index vector already subsetted on the games of interest. This allows consistency with previous  parts of the question.
+index <- as.numeric(rownames(X[subset.vector,]))
+### split the data using library caret, based on the home teams.
+library(caret)
+folds <- createFolds(y=games$home[index], k=10, list=TRUE, returnTrain=TRUE)
+```
+
+Next we loop through each of the folds and store the predictions for each of the games.
+```{r}
+### loop through each fold to model with train and store the results for test
+for(i in 1:10){
+### For ease of use, store the test and train indices for each loop
+        indtest  = index[-folds[[i]]]
+        indtrain = index[folds[[i]]]
+### Using the train fold only, fit log_reg and lin_mod
+        CVlog.mod <- glm(z ~ 0 + homeAdv + ., data=X, family=binomial, subset=indtrain)
+        CVlm.mod  <- lm(y ~ 0 + homeAdvlm + ., data=X, subset=indtrain)
+### Assign the predicted coefficients per team to the test fold
+        coefficients[indtest,1] <- coef(CVlog.mod)[paste("`",games$home[indtest],"`",sep="")]
+        coefficients[indtest,2] <- coef(CVlog.mod)[paste("`",games$away[indtest],"`",sep="")]
+        coefficients[indtest,3] <- coef(CVlm.mod)[paste("`",games$home[indtest],"`",sep="")]
+        coefficients[indtest,4] <- coef(CVlm.mod)[paste("`",games$away[indtest],"`",sep="")]
+        }
+```
+
+We then create a vector, one for each of logistic regression and linear model, to hold whether each game was predicted correctly or not. These are both added to a contingency table of results. 
+
+```{r}
+### create vectors to hold success of the logistic regression and linear model
+winnerlog <- rep(NA, nrow(games))
+winnerlm  <- rep(NA, nrow(games))
+winnerlog[(games$homeScore>games$awayScore) == (coefficients[,1]>coefficients[,2])] <- "logistic right"
+winnerlog[(games$homeScore>games$awayScore) != (coefficients[,1]>coefficients[,2])] <- "logistic wrong"
+winnerlm[(games$homeScore>games$awayScore) == (coefficients[,3]>coefficients[,4])] <- "linear right"
+winnerlm[(games$homeScore>games$awayScore) != (coefficients[,3]>coefficients[,4])] <- "linear wrong"
+### Create contingency table of actual result, linear model, logistic regression
+table(winnerlm,winnerlog)
+```
+
+#### (e) n11 and n22 don't tell us anything about which model is better, because they correspond to games where both models agree with each other. So to compare the two models, we need to look at n12 and n21. Let D = n12 + n21 be the number of test games in which the two models disagreed. If both models are equally good and the test set games are independent, then every time the models disagree, each model is equally likely to be right. Then, conditional on D, n12 ~ Binom(D; 1=2) For large D, the above binomial distribution is approximately normal with mean D/2 and variance D/4 (hence standard deviation sqrt(D)=2). You do not have to prove any of the above statements, just take them as given. 
+#### Use the normal approximation to carry out a test of the hypothesis that both models are equally good at predicting games. What is the conclusion of your test? What you just did is called McNemar's Test, and it is the correct way of comparing the performance of two classiffiers on a test set. 
+
+
+We will first look at the confidence intervals of the two intervals being the same. It can be seen that the results fall within the 95% confidence interval, meaning we cannot refect the null hypothesis.
+```{r}
+hypTest <- function(contingency){
+  D = contingency[1,2] + contingency[2,1]
+  lower_int = D/2 - 1.96*(sqrt(D)/2)
+  upper_int = D/2 + 1.96*(sqrt(D)/2)
+  cat('The confidence interval of D :', c(lower_int, upper_int))
+}
+hypTest(table(winnerlm,winnerlog))
+```
+
+We next perform an Exact McNemar test (given the large samples), using R package 'exact2x2', which calculates the exact McNemar's test with appropriate matching confidence intervals. A p-value of .05534 is seen given out contingency table. With this, there is insufficient evidence to reject the zero hypothesis, that both models are qually good at predicting games.
+
+```{r}
+library(exact2x2)
+mcnemar.exact(as.matrix(table(winnerlm,winnerlog)),y=NULL, conf.level=.95)
+```

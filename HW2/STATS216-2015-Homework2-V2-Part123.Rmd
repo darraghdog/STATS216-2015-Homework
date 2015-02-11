@@ -1,0 +1,225 @@
+---
+title: "STATS216-Homework2-V0"
+author: "Darragh Hanley"
+date: "Thursday, February 05, 2015"
+output: word_document
+---
+
+--------------------------------------------------------------------------------------------
+
+
+#### 1) Logistic regression can give poor results when the two classes can be perfectly separated by a linear decision boundary. Consider just a logistic regression with a single predictor, X,....
+##### (a) Show that the likelihood function L(\(\beta_0 ; \beta_1\)) is always strictly less than 1.
+
+First we will examine p(x) under different values of \(\beta_0 + \beta_1 X\)
+
+As \(\beta_0 + \beta_1 X\) goes to  \(\infty\), p(x) goes to \(e^\infty\) / (1 + \(e^\infty\)). \(e^\infty\) is infinity, so p(x) goes to 1, but never reaches 1 as the numerator is always less than the denomiator.
+
+As \(\beta_0 + \beta_1 X\) goes to  \(-\infty\), p(x) goes to \(e^{-\infty}\) / (1 + \(e^{-\infty}\)). \(e^\infty\) is 0, so p(x) goes to 0, but never reaches 1 as the numerator never reaches 0, and the denominator goes to but never reaches 1.
+
+Between both of the above we have the case where \(\beta_0 + \beta_1 X\) = 0. Here, P(x) = \(e^0\) / (1 - \(e^0\)) = 1 / (1+1) = .5
+
+We can plot these values of P(x), as seen below.
+
+The likelihood function is made of two seperate probabilities. 
+Each of these probabilities follows the model p(X) = \(e^{\beta_0 + \beta_1 X}\) / (1 + \(e^{\beta_0 + \beta_1 X}\)).
+Therefore the likelihood function is always between 0 and 1 but never reaches 0 and 1. So, the likelihood function L(\(\beta_0 ; \beta_1\)) is always strictly less than 1.
+
+
+```{r}
+x <- -100:100
+p <- exp(x)/(1+exp(x))
+plot(x, p, type="l",xlab="x", col="red", xaxt="n", ylab="exp(x)/(1+exp(x))")
+```
+
+
+##### (b) Suppose that all of the \(x_i\) corresponding to \(y_i\) = 0 are negative, and all of the other \(x_i\) are positive. In that case, show that we can get  L(\(\beta_0 ; \beta_1\)) arbitrarily close to 1. That is, show that for any value a < 1, no matter how close to 1, you can always find values \(\beta_0\) and \(\beta_1\) for which  L(\(\beta_0 ; \beta_1\)) > a. Explain why this means that \(\hat{\beta_0}\) and \(\hat{\beta_1}\) are undefined.
+
+From the book, we know when the classes are well-separated, the parameter estimates for the logistic regression model are surprisingly unstable. This question explains such a case.
+
+We have a single predictor,  \(x_i\), and our response,  \(y_i\), has two possible classes. Let us call the classes of \(y_i\), 0 and 1.
+
+For all of the \(y_i\) = 0. We know that \(x_i\) < 0.
+
+For all of the other \(x_i\), eg. where \(y_i\) = 1, \(x_i\) => 0. 
+
+Given the above we know the outcome of Y for any value of X. Once we know whether X is negative or not, we know the class of Y. So, Pr( Y = 0 | X < 0 ) = 1 and Pr( Y = 1 | X => 0 ) = 1.
+
+However the likelihood function used to estimate Y, holds that p(X) = \(e^{\beta_0 + \beta_1 X}\) / (1 + \(e^{\beta_0 + \beta_1 X}\)). And as seen in part (a), p(x) in the likelihood function never reaches 1. These are the two terms of the likelihood function.
+
+So the likelihood function will take the p(x) as close to 1 as it can without ever reaching 1. However, no matter how close it can get to 1, for example, value a < 1; it always has room (1-a), to make p(x) closer to 1.
+Therefore for any value a < 1, no matter how close to 1, you can always find values \(\beta_0\) and \(\beta_1\) for which  L(\(\beta_0 ; \beta_1\)) > a.
+
+In this case, the estimates \(\hat{\beta_0}\) and \(\hat{\beta_1}\) used in the likelihood function is essentially a moving target. No matter what value we assign to \(\hat{\beta_0}\) and \(\hat{\beta_1}\) to get p(x) near to the true probability of 1, we can always change them to make them more accurate. This means \(\hat{\beta_0}\) and \(\hat{\beta_1}\) are undefined.
+
+##### (c) Show that \(\hat{\beta_0}\) and \(\hat{\beta_1}\) are similarly undefined if there is any value c for which every \(x_i\) corresponding to \(y_i\) = 0 is less than c and every other \(x_i\) is larger than c. In fact, the same is true for multivariate logistic regression. Whenever there is a linear decision boundary that perfectly separates the two classes, the maximum likelihood logistic regression coefficients are undefined (but you don't have to prove this last fact).
+
+Again, we have a single predictor,  \(x_i\), and our response,  \(y_i\), has two possible classes. Let us call the classes of \(y_i\), 0 and 1.
+
+For all of the \(y_i\) = 0. We know that \(x_i\) < c.
+
+For all of the other \(x_i\), eg. where \(y_i\) = 1, \(x_i\) => c. 
+
+Given the above we know the outcome of Y for any value of X. Once we know whether X is less than c or not, we know the class of Y. So, Pr( Y = 0 | X < c ) = 1 and Pr( Y = 1 | X => c ) = 1. These are the two terms of the likelihood function.
+
+However the likelihood function used to estimate Y, holds that p(X) = \(e^{\beta_0 + \beta_1 X}\) / (1 + \(e^{\beta_0 + \beta_1 X}\)). And as seen in part (a), p(x) in the likelihood function never reaches 1. 
+
+Again the likelihood function will take the p(x) as close to 1 as it can without ever reaching 1. However, no matter how close it can get to 1, for example, value a < 1; it always has room (1-a), to make p(x) closer to 1.
+Therefore for any value a < 1, no matter how close to 1, you can always find values \(\beta_0\) and \(\beta_1\) for which  L(\(\beta_0 ; \beta_1\)) > a.
+
+In this case, the estimates \(\hat{\beta_0}\) and \(\hat{\beta_1}\) used in the likelihood function is essentially a moving target. No matter what value we assign to \(\hat{\beta_0}\) and \(\hat{\beta_1}\) to get p(x) near to the true probability of 1, we can always change them to make them more accurate. This means \(\hat{\beta_0}\) and \(\hat{\beta_1}\) are similarly undefined as per question part (b).
+
+##### (d) Come up with your own data set of the form in (c) and fit a logistic regression to it in R. Plot your data, as well as the logistic regression fit ^p(x). You will probably get warning messages that the fit didn't converge, and that you have numerically 0 or 1 fitted probabilities. The first message usually signals that you have fit a logistic regression to perfectly separable classes.
+
+First we set the seed and generate 1000 random values of mean 2 and standard deviation 5. this is the predictor. 
+```{r}
+set.seed(124)
+norm <- rnorm(100, 2, 5)
+x <- norm[1:1000]
+```
+
+
+Now we create the response of the same length. We use c=3 as the seperator of classes. For all x<3 the response is 0. And for all other the response is 1. 
+```{r}
+y <- rep(NA, 1000)
+y[x>=3] <- 1
+y[x<3] <- 0
+dat=as.data.frame(cbind(x,y)) 
+```
+
+Now we fit the logistic regression and check the warning message.
+```{r}
+log.mod <- glm(y~x,family=binomial,dat) 
+```
+
+Create the plot and add a line to indicate where the seperating boundary is.
+```{r}
+plot(x,y, col="green", main = "Perfectly separated classes")
+abline(v=3,col="blue",lty=2)
+curve(predict(log.mod,data.frame(x=x),type="resp"), col="red",add=TRUE) 
+```
+
+
+#### 2) We will now derive the probability that a given observation is part of a bootstrap sample. Suppose that we obtain a bootstrap sample from a set of n observations.
+##### (a) What is the probability that the first bootstrap observation is not the jth observation from the original sample? Justify your answer.
+
+The probability that the first bootstrap observation is not the jth observation is (n-1)/n.
+
+This can be proved as follows the case because the,
+
+  1. Probability that the *first bootstrap obervation is observation j* = 1/n
+  2. Probability that the *first bootstrap obervation is observation j* or *first bootstrap obervation is not observation j* = 1
+  3. Therefore, probability that the *first bootstrap obervation is not observation j* = 1-1/n = (n-1)/n
+
+##### (b) What is the probability that the second bootstrap observation is not the jth observation from the original sample?
+The probability that the second observation is not the jth observation from the original sample is (n-1)/n. The same as the probability for the first observation.
+
+##### (c) Argue that the probability that the jth observation is not in the bootstrap sample is (1-(1/n))^n.
+
+In a bootstrap sample, of n observations, we choose out a single observation, n times.
+
+As seen in part (a), above, for each single observation the probability we will not choose the jth observation is : 1-(1/n).
+
+If two events, A and B are independent then the joint probability is P(A and B) = P(A)P(B). 
+
+In the bootstrap case, each event is independent. Therefore the we get the product of all the events.
+
+We have n events, each of probability (1-(1/n))^n. Therefore we get the probability of that event n times. This is (1-(1/n))^n.
+
+Lets test this. If there are two observations(n=2), and j=2. The probability j=2 is not drawn on the first sample is .5, the same on the second sample. The probability it is not chosen in either is the .25. Plugging this into the formula :
+```{r}
+    n = 2
+    (1-(1/n))^n == .25
+```
+
+
+##### (d) When n = 5, what is the probability that the jth observation is in the bootstrap sample?
+
+The formula to use for the jth observation **not in the bootstrap sample** is (1-(1/n))^n, as seen in previous questions. 
+
+The formula to use for the jth observation **in the bootstrap** sample is 1-(1-(1/n))^n. Since both events are mutually exclusive and the probability of getting one of the two events is 1.
+
+
+```{r}
+    n = 5
+    print(paste( "For n=5, the probability that the jth observation is in the bootstrap sample ", round(1-(1-(1/n))^n, digits=3), sep=""))
+```
+
+##### (e) When n = 100, what is the probability that the jth observation is in the bootstrap sample?
+
+```{r}
+    n = 100
+    print(paste( "For n=100, the probability that the jth observation is in the bootstrap sample", round(1-(1-(1/n))^n, digits=3)))
+```
+
+##### (f) When n = 10,000, what is the probability that the jth observation is in the bootstrap sample?
+
+```{r}
+    n = 10000
+    print(paste( "For n=10,000, the probability that the jth observation is in the bootstrap sample", round(1-(1-(1/n))^n, digits=3)))
+```
+
+##### (g) Create a plot that displays, for each integer value of n from 1 to 100000, the probability that the jth observation is in the bootstrap sample. Comment on what you observe.
+
+It can be seen below that as the population grows larger, the probability that the jth observation will not be picked converges to one value, circa 0.632.
+
+```{r}
+x <- 1:100000
+y <- 1-(1-(1/x))^x
+plot(x, y, log="x", type="l", xlab="n", col="red", xaxt="n", ylab="1 - ( 1 - (1/n) )^n", ylim=c(0, 1))
+ticks <- seq(0, 5, by=1)
+labels <- sapply(ticks, function(i) as.expression(bquote(10^ .(i))))
+axis(1, at=c(1, 10, 100, 1000, 10000,100000), labels=labels)
+```
+
+
+##### (h) We will now investigate numerically the probability that a bootstrap sample of size n = 100 contains the jth observation. Here j = 4. We repeatedly create bootstrap samples, and each time we record whether or not the fourth observation is contained in the bootstrap sample.
+##### > store = rep (NA , 10000)
+##### > for (i in 1:10000) { store [i]= sum ( sample (1:100 , rep= TRUE ) ==4) > 0 }
+##### > mean ( store )
+##### Comment on the results obtained.
+
+The below code put the theory of part (g) to experiment, by actually creating 10000 different boot straps from the same population, of sample size = 100. It then checks from these 10000 samples, what proportion of the time, a particular value was taken into the sample.
+The answer, .6408, is very close to the probability, seen in part (g) of the question, which large values of n converge to.
+
+```{r}
+set.seed(1)
+store = rep (NA , 10000)
+for (i in 1:10000) { 
+    store [i]= sum ( sample (1:100 , rep= TRUE ) ==4) > 0 
+    }
+mean ( store )
+```
+
+
+
+#### 3) Suppose we estimate the regression coefficients in a linear regression model by minimizing... ridge regression formula... for a particular value of lambda. For parts (a) through (e), indicate which of i. through v. is correct. Justify your answer.
+##### (a) As we increase \(\lambda\)   from 0, the training RSS will: (i. Increase initially, and then eventually start decreasing in an inverted U shape. ii. Decrease initially, and then eventually start increasing in a U shape. iii. Steadily increase. iv. Steadily decrease. v. Remain constant.)
+
+iii. Steadily increase.
+
+with 0 \(\lambda \), the linear regression will minimise the MSE of the training data. As we reduce the coefficients by increasing \(\lambda \), the training MSE will increase steadily.
+
+##### (b) Repeat (a) for test RSS.
+
+ii. Decrease initially, and then eventually start increasing in a U shape.
+
+Initially, as we make \(\lambda \) larger from 0, the bias is pretty much unchanged (slightly increasing), but the variance drops. So a ridge regression, by shrinking the coefficient toward 0, controls the variance. It doesn't allow the coefficient to be too big, and it gets rewarded because the mean square error (sum of bias & variance) goes down. However at one point the bias starts increasing more quickly and we reach a point where the test MSE is minimised. At this point Bias is rising faster than variance is falling. This causes the test RSS to rise again.
+
+##### (c) Repeat (a) for variance.
+
+iii. Steadily decrease.
+
+This is rooted in the bias-variance trade-off. An increase in \(\lambda \), from 0, causes a decrease in the flexibility of the ridge regression fit, leading to decreased variance and increased bias.
+
+##### (d) Repeat (a) for (squared) bias.
+
+iii. Steadily increase.
+
+This is rooted in the bias-variance trade-off. An increase in \(\lambda \) causes a decrease in the flexibility of the ridge regression fit, leading to decreased variance and increased bias.
+
+##### (e) Repeat (a) for the irreducible error.
+
+v. Remain constant.
+
+Irreducible error is the noise term in the true relationship that cannot fundamentally be reduced by any model. The reducible error can be reduced by model improvements. Given this the irreducible error does not change with any model change. 
