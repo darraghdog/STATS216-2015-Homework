@@ -1,0 +1,285 @@
+---
+title: "STATS216 Homework 3"
+author: "Darragh Hanley"
+date: "Wednesday, February 11, 2015"
+output: word_document
+---
+
+#### 3. **For this problem I worked with Tony Wu, Sevvandi Kandanaarachchi and Andrew Beckerman.** This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentration in parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.
+
+<br>
+
+##### (a) Use the poly() function to fit a cubic polynomial regression to predict nox using dis. Report the regression output, and plot the resulting data and polynomial fits.
+
+<br>
+
+First we load the package, and attached the data set.
+```{r}
+library(MASS)
+attach(Boston)
+```
+
+Now we fit the polynomial regression and report the regression output. Assumption is we use raw polynomials, as the basis for the fit, as opposed to orthogonal polynomials. This means we can get the direct coefficients for each degree of the fit.
+```{r}
+fit = lm(nox ~ poly(dis ,3, raw =T))
+summary(fit)
+```
+
+So if we look at the summary, we can see that the linear, quadratic and cubic terms are significant.
+Lets plot the data and the polynomial fit.
+```{r fig.width=8, fig.height=5}
+# get the range of the axis we want the line to follow
+dislims =range(dis)
+# create a grid of x-axis points we want to predict. In order to smooth the make the increments small. 
+dis.grid=seq(from=dislims[1], to=dislims [2], by = .1)
+# predict the nox value for each of the points.
+preds=predict(fit, newdata =list(dis=dis.grid), se=TRUE)
+# plot our data points and the polynomial fit.
+plot(dis,nox, main = "Polynomial fit of Boston data frame")
+lines(dis.grid ,preds$fit ,lwd =2, col =" blue")
+```
+
+<br>
+
+##### (b) Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+
+<br>
+
+Below can be seen a plot for the polynomial fits, given the incremental degrees of freedom from 1 to 10. for each the residual some of squared, RSS, is reported in the title.
+
+```{r fig.width=8, fig.height=12}
+par(mfrow = c(5, 2))
+for(i in 1:10){
+  fit = lm(nox ~ poly(dis ,i, raw =T))
+  preds=predict(fit, newdata =list(dis=dis.grid), se=TRUE)
+  plot(dis,nox, col="grey80",main= paste("Degree:", i, ", RSS:", round(sum(fit$residuals^2),3)), xlab="nox", ylab="dis")
+  lines(dis.grid ,preds$fit ,lwd =2, col =" blue")
+}
+```
+
+<br>
+
+##### (c) Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.
+
+<br>
+
+First we perform 10 fold cross validation. for this part we use the glm package linear modelling in order to leverage the cross validation function. 
+
+
+```{r}
+par(mar=c(5,5,5,5))
+par(mfrow = c(1, 1))
+library(boot)
+set.seed(800)
+degree=1:10
+cv.error=rep(0,10)
+for (i in degree){
+    fit = glm(nox ~ poly(dis ,i, raw =T),data=Boston)
+    cv.error[i] = cv.glm(Boston,fit, K=10)$delta[1]
+}
+cv.error
+```
+
+We can see that the minimum occurs at 10 degrees of freedom for this seed, with the 3rd and the 4th also performing nearly as well. However the chart seems to have a lot of fluctuation as the degrees increase beyond 6.
+
+```{r fig.width=8, fig.height=5}
+plot(degree,cv.error,type="b", ylim = c(0, 0.012))
+```
+
+Lets look at this fluctuation. We repeat the cross validation for different seeds and look at the variation in the cross validation. It can be seen that the larger degrees are very unstable in there results.
+
+
+```{r fig.width=8, fig.height=5}
+degree=1:10
+cv.errormat = matrix(NA,nrow=10, ncol=10)
+for(j in 1:10){
+  set.seed(j)
+  for (i in degree){    
+      fit = glm(nox ~ poly(dis ,i, raw =T),data=Boston)
+      cv.errormat[j,i] = cv.glm(Boston,fit, K=10)$delta[1]
+  }
+}
+boxplot(cv.errormat)
+```
+
+Below is a plot showing the average of results for 10 different seeds, along with the standard error in grey. We can see the 3rd degree marked in red which has the minimum error minimal standard error. The second degree is also quite low however is not low enough to meet the rule of one standard error from the minimum. **Therefore the optimal degree is the third.**
+
+```{r fig.width=8, fig.height=5}
+# plot the mean of the errors overs the 10 different seeds
+plot(degree,colMeans(cv.errormat),type="b", ylab="Average cv.error", main="Polynomial - CV Error over 10 seeds (One Std Error grey band)")
+
+# Create a function to calculate the std error of the errors for each degree.
+std <- function(x) sd(x)/sqrt(length(x))
+# make the upper and lower threshold for SE and plot it
+se.upper <- colMeans(cv.errormat) + apply(cv.errormat, 2, std)
+se.lower <- colMeans(cv.errormat) - apply(cv.errormat, 2, std)
+polygon(c(degree, rev(degree)), c(se.lower, rev(se.upper)),col = adjustcolor("grey",alpha.f=0.5), border = NA)
+# plot the minimum error point
+degree.min <- which.min(colMeans(cv.errormat))
+points(degree.min, colMeans(cv.errormat)[degree.min], pch = 20, col = "red")
+```
+
+<br>
+
+##### (d) Use the bs() function to fit a regression spline to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.
+
+<br>
+
+4 degrees of freedom in a cubic regression spline (default setting of function bs()) indicates we should use 1 knot in the spline.
+In order to choose the knot, a common practice is to place knots in a uniform fashion. For this case we will use option df to produce a spline with knots at uniform quantiles - a cubic spline with one knot would be at the median of dis. We can verify this below. 
+```{r}
+# Lets verify that one knot is placed by function bs() at the median of dis.
+library(splines)
+median(dis) == attr(bs(dis,df=4), "knots")
+```
+
+Now lets fit the model. As can be seen below the spline has 4 degrees of freedom. 
+
+```{r fig.width=8, fig.height=5}
+# Load the package and fit cubic spline models with one knot.
+fit1 = lm(nox ~ bs(dis,df=4),data=Boston)
+# Validate the degrees of freedom.
+summary(fit1)$fstatistic[2]
+```
+
+The full summary of the fit can be seen below.
+
+```{r}
+summary(fit1)    # fit1 is the manually picked
+```
+
+
+Now lets plot the fits along with the associated knot.
+
+```{r fig.width=8, fig.height=5}
+preds=predict(fit1, newdata =list(dis=dis.grid), se=TRUE)
+# plot our data points and the polynomial fit.
+plot(dis,nox, main = "Spline (4 degrees freedom) fit of Boston data frame", col="grey")
+lines(dis.grid, preds$fit ,lwd =2, col =" blue")
+# show the 95% confidence interval of the model
+lines(dis.grid,preds$fit +1.96 * preds$se ,lty = "dashed", col= adjustcolor("blue",alpha.f=0.5), lwd =1.5)
+lines(dis.grid ,preds$fit -1.96 * preds$se ,lty = "dashed", col= adjustcolor("blue",alpha.f=0.5), lwd =1.5)
+abline(v=attr(bs(dis,df=4), "knots"), lty=2, lwd=2, col="grey")
+legend(5,.8, c("Cubic Spline with 4 df", "95% confidence interval of model", "Knot placement"), col=c("blue",adjustcolor("blue",alpha.f=0.5), "grey"), lwd=2, lty = c("solid","dashed", "dashed"), cex=.7)
+```
+
+The fit has a long tail and large confidence band at high values of dis, this is to be expected given the small number of points in this range. Besides this it is quite smooth with a slight broadening of the confidence band at the lower values of dis.
+
+<b>
+
+**Alternatively we can go with the text book definition ** where for the cubic spline with K knots, we use K+4 degrees of freedom. So this would mean the df=3 in function bs(), giving no knots.
+```{r}
+# Lets verify that one knot is placed by function bs() at the median of dis.
+library(splines)
+median(dis) == attr(bs(dis,df=3), "knots")
+```
+
+
+```{r fig.width=8, fig.height=5}
+# Load the package and fit cubic spline models with one knot.
+fit1a = lm(nox ~ bs(dis,df=3),data=Boston)
+```
+
+The full summary of the fit can be seen below.
+
+```{r}
+summary(fit1a)    # fit1 is the manually picked
+```
+
+
+Now lets plot the fits along with the associated knot.
+
+```{r fig.width=8, fig.height=5}
+predsa=predict(fit1a, newdata =list(dis=dis.grid), se=TRUE)
+# plot our data points and the polynomial fit.
+plot(dis,nox, main = " Cubic Spline fit of Boston data frame \n (df=3, where cubic spline is 4 df)", col="grey")
+lines(dis.grid, predsa$fit ,lwd =2, col =" blue")
+# show the 95% confidence interval of the model
+lines(dis.grid,predsa$fit +1.96 * predsa$se ,lty = "dashed", col= adjustcolor("blue",alpha.f=0.5), lwd =1.5)
+lines(dis.grid ,predsa$fit -1.96 * predsa$se ,lty = "dashed", col= adjustcolor("blue",alpha.f=0.5), lwd =1.5)
+abline(v=attr(bs(dis,df=3), "knots"), lty=2, lwd=2, col="grey")
+legend(5,.8, c("Cubic Spline with 4 df", "95% confidence interval of model", "Knot placement"), col=c("blue",adjustcolor("blue",alpha.f=0.5), "grey"), lwd=2, lty = c("solid","dashed", "dashed"), cex=.7)
+```
+
+
+
+
+
+<br>
+
+##### (e) Now fit a regression spline for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. Describe the results obtained.
+
+<br>
+
+Below can be seen the plot of regression splines ranging from 3 up to 11 degrees of freedom, along with the reported RSS.
+we can see as the knots increase the function gets increasing complex (wiggly) to fit the training data. Up to 4 knots seems reasonably smooth to the naked eye. 
+The whiplash effect at low values of dis starts to appear at only 2 knots.
+
+```{r fig.width=8, fig.height=12}
+degrees = 3:12
+RSS <- rep(0,12)
+
+par(mfrow = c(5, 2)) 
+for(i in degrees){ 
+  fit = glm(nox ~ bs(dis,df=i),data=Boston)
+  preds=predict(fit, newdata =list(dis=dis.grid), se=F) 
+  RSS[i] <- round(sum(fit$residuals^2),3)
+  plot(dis, nox, col="grey80",main= paste("Degree: ", i, ", RSS: ", RSS[i], ", Knots: ", i-3, sep=""), xlab="nox", ylab="dis")   
+  lines(dis.grid ,preds ,lwd =2, col =" blue") 
+}
+```
+
+As can be seen on the 0 scale chart on the left, there is an initial drop in RSS from 4 to 5 df, however the drop is slower after that point, as the function gradually fits the data better. The right chart zoomed in on the y-axis shows a nearly steady decline in RSS from 5 to 12 df. 
+
+
+```{r}
+par(mfrow = c(1, 2))
+plot(degrees,RSS[3:12],type="b", ylim=c(0,max(RSS)), xlab="Degree of freedom", ylab="RSS")
+plot(degrees,RSS[3:12],type="b", xlab="Degree of freedom", ylab="RSS")
+```
+
+<br>
+
+##### (f) Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline. Describe your results.
+
+<br>
+
+Here we run a number of cross validations for each degree and box plot the results. Of interest is that the median cv.error results from df=5 to df=13 are quite similar. However the df=5 appears to have the least variance.
+
+
+```{r fig.width=8, fig.height=5, message=FALSE, warning=FALSE}
+cv.errormat = data.frame(matrix(NA,nrow=10, ncol=10))
+degree.k <- 3:13
+for(j in 1:10){
+  set.seed(j)
+  for (i in degree.k){    
+      fit2 = glm(nox ~ bs(dis,df=i),data=Boston)
+      cv.errormat[j,i-2] = cv.glm(Boston,fit2, K=10)$delta[1]
+  }
+}
+
+colnames(cv.errormat) <- degree.k
+boxplot(cv.errormat, xlab="Degrees of freedom", ylab="cross-validation error", main="Regression spline over different seeds")
+```
+
+Finally we will plot the results along with there standard error, and display the standard error to attempt to use the one standard error rule. 
+
+```{r fig.width=8, fig.height=5}
+## plot the mean of the errors overs the 10 different seeds
+plot(degree.k,colMeans(cv.errormat),xlab="Degrees of freedom", ylab="Average cv.error", main="Regression Spline with knots : Avg CV and one SE band")
+## make the upper and lower threshold for SE and plot it
+se.upper <- colMeans(cv.errormat) + apply(cv.errormat, 2, std)
+se.lower <- colMeans(cv.errormat) - apply(cv.errormat, 2, std)
+## plot the minimum error point
+degree.min <- which.min(colMeans(cv.errormat))
+points(degree.k[degree.min], colMeans(cv.errormat)[degree.min], pch = 20, col = "red")
+arrows(degree.k, se.lower, degree.k, se.upper,length=0.05, angle=90, code=3)
+abline(h=se.upper[degree.min] ,col="red",lty=2)
+```
+
+It appears like some of the results at lower degrees of freedom meets the standard error rule of being within one standard error of the minimum. We validate this below. 6 is the lowest df to meet the one SE rule, therefore **we choose 6 as the best degrees of freedom for a regression spline with this data.**
+
+```{r}
+# Check which results are within the one SE of the minimum.
+colMeans(cv.errormat) < se.upper[degree.min]
+```
