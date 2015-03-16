@@ -1,0 +1,148 @@
+e---
+title: "Homework 4 Question 2&1"
+author: "Darragh Hanley"
+date: "Tuesday, March 03, 2015"
+output: word_document
+---
+
+### 1. This question relates to the plots in Figure 8.12 of your textbook An Introduction to Statistical Learning.
+
+<br>
+
+#### (a) Sketch the tree corresponding to the partition of the predictor space illustrated in the left-hand panel of Figure 8.12. The numbers inside the boxes indicate the mean of Y within each region.
+
+<br>
+
+#### (b) Create a diagram similar to the left-hand panel of Figure 8.12, using the tree illustrated in the right-hand panel of the same figure. You should divide up the predictor space into the correct regions, and indicate the mean for each region.
+
+
+#### Q2(a) Generate a simulated data set with 20 observations in each of three classes (i.e. 60 observations total), and 50 variables. Hint: There are a number of functions in R that you can use to generate data. One example is the rnorm() function;runif() is another option. Be sure to add a mean shift to the observations in each class so that there are three distinct classes.
+
+````{r}
+# Lets set our seed to get reproducable results.
+set.seed(100)
+# For the response variable y create 20 of each response type
+y <- rep(c(1,2,3),20 )
+# For the predictions create a matrix with 50 columns * 60rows of random normal observations
+x <- matrix(rnorm(60*50), ncol=50) # defaults to mean = 0 and sd = 1
+# Shift the classes all .7 unit apart
+x[y==2,]= x[y==2,] - .6
+x[y==3,]= x[y==3,] + .6
+# Give the matrix column and row names
+dimnames(x) <- list(rownames(x, do.NULL = FALSE, prefix = "row"),
+colnames(x, do.NULL = FALSE, prefix = "col"))
+# Plot the first two columns against each other to examine the data.
+par(mfrow=c(1,1))
+plot(x[,1:2], col =(4-y), pch=19)
+```
+
+
+#### (b) Perform PCA on the 60 observations and plot the first two principal component score vectors. Use a different color to indicate the observations in each of the three classes. If the three classes appear separated in this plot, then continue to part (c). If not, then return to part (a) and modify the simulation so that there is greater separation between the three classes. Do not continue to part (c) until the three classes show at least some separation in the first two principal component score vectors.
+
+We now perform principal components analysis using the prcomp(). The variables are already scaled so no need to do this.
+```{r}
+pr.out =prcomp(x, scale =FALSE)
+# Plot the first two principal component score vectors
+plot(pr.out$x[,1:2], col=4-y, pch =19, xlab ="First principal component", ylab="Second principal component")
+```
+From the above plot we can see the first component does a good job of separating the classes, however the second class does not so good. 
+
+
+#### (c) Perform K-means clustering of the observations with K = 3. How well do the clusters that you obtained in K-means clustering compare to the true class labels? Hint: You can use the table() function in R to compare the true class labels to the class labels obtained by clustering. Be careful how you interpret the results: K-means clustering will arbitrarily number the clusters, so you cannot simply check whether the true class labels and clustering labels are the same.
+
+The function kmeans() performs K-means clustering in R. 
+```{r}
+# Option nstart attempts 20 initial random centorids
+km.out.c =kmeans(x,3, nstart =20)
+# create a contigency table of the assigned cluster and the actual class
+table(km.out.c$cluster, y, dnn=c("Cluster","Class"))
+```
+Although K-means clustering will arbitrarily number the clusters, we see that each arbitrary cluster is assigned to one class only. K-means performs perfectly in this case.
+
+
+#### (d) Perform K-means clustering with K = 2. Describe your results.
+
+```{r}
+# Change to 2 clusters
+km.out.d =kmeans(x,2, nstart =20)
+# We can see hear that two of the clusters
+table(km.out.d$cluster, y, dnn=c("Cluster","Class"))
+```
+
+In the table above we see that two of the classes are perfectly assigned to two clusters. ie. class 2 to cluster 1 and class 3 to cluster 2. However as we only have two classes K-means has forced the class 1 to be split among the two clusters - however, majority of class1 observations go to cluster 2.
+
+Below we plot the points, response variables (color) and the cluster class (point border or not) for the first two variables.
+
+```{r warnings=FALSE}
+# plot only for the first two variables to see how the points are assigned
+plot(x[,1:2], col=(4-y), pch=19)
+points(x[km.out.d$cluster==1,1:2], pch=5, cex = 1.5)
+legend("topleft", c(paste("Cluster",unique(km.out.d$cluster))), pch=c(5,27), cex=.7)
+```
+
+
+#### (e) Now perform K-means clustering with K = 4, and describe your results.
+
+```{r}
+# Change to 4 clusters
+km.out.e =kmeans(x,4, nstart =20)
+# Show the contingency table of clusters and class
+table(km.out.e$cluster, y, dnn=c("Cluster","Class"))
+```
+
+In the table above, we see that the majority of observations in each class are assigned to one cluster only. Class 1 to cluster 1. Class 2 to cluster 2. Class 3 to cluster 3. However k-means seemed to have forced some observations from each class into a fourth cluster (cluster 4). We also see an outlier, with class 2 having one value in cluster 1.
+
+#### (f) Now perform K-means clustering with K = 3 on the first two principal component score vectors, rather than on the raw data. That is, perform K-means clustering on the 60x2 matrix of which the first column is the first principal component score vector, and the second column is the second principal component score vector. Comment on the results.
+
+Performs k-means with K=3, replacing on the first two principal components
+```{r}
+km.out.f =kmeans(pr.out$x[,1:2],3, nstart =20)
+```
+Below it can be seen that only the first two principal components almost perfectly separate each class into unique clusters. There is only one outlier in class 2. Here we have reduced the variables from 50 to 2, and achieved almost the same accuracy as seen in part (c) where three clusters were also used.
+```{r}
+table(km.out.f$cluster, y, dnn=c("Cluster","Class"))
+```
+
+
+#### (g) Using the scale() function, perform K-means clustering with K = 3 on the data after scaling each variable to have standard deviation one. How do these results compare to those obtained in (c)? Explain.
+
+Lets first scale our variables to have standard deviation of 1. We do not want to center them.
+The default of the scale function is sd=1. This is what the question asks for.
+```{r}
+x.scale <- scale(x, center = FALSE, scale = TRUE)
+# Now lets look at the clustering result. It performs just as well as in part (c). Lets explore why this is.
+km.out.g =kmeans(x.scale, 3, nstart =20)
+table(km.out.g$cluster, y, dnn=c("Cluster","Class"))
+```
+
+First lets check if the data (x.scale) is scaled to Sd = 1. From below it appears like it is. We do notice the the columnwise means have shifted slightly. 
+```{r}
+# for each variable/column, get the mean and sd before and after the scaling
+check.col <- cbind(apply(x.scale,2,sd), apply(x,2,sd), apply(x.scale,2,mean), apply(x,2,mean))
+colnames(check.col) <- c("Scaled \nColumn Sd","Original \nColumn Sd","Scaled \nColumn Mean","Original \nColumn Mean")
+# create a boxplot for the data to compare
+boxplot(check.col, cex.axis=0.7)
+```
+
+Lets examine the rowwise means to see how they compare after the scaling. The below plot shows a slight change in rowwise mean of each class however the general mean shift performed in part (a) of the question is very much kept intact. 
+```{r fig.width=8, fig.height=5}
+# for each row, get the mean before and after the scaling
+check.row <- cbind(apply(x.scale,1,mean), apply(x,1,mean))
+colnames(check.row) <- c("Scaled \nRow Mean","Original \nRow Mean")
+par(mfrow=c(1,3))
+boxplot(check.row[y==1,], ylim=c(-1,1), main="Class 1")
+boxplot(check.row[y==2,], ylim=c(-1,1), main="Class 2")
+boxplot(check.row[y==3,], ylim=c(-1,1), main="Class 3")
+```
+
+Now lets look at some data points. We can see that there has been a very small centering of the data points. However  each class (or color) has its own center it is shifting into.
+```{r}
+par(mfrow=c(1,1))
+plot(x[,1:2], col =(4-y), pch=19, xlim=c(-3,3), ylim=c(-3,3))
+points(x.scale[,1:2], col =(4-y), pch=1)
+legend(-3,3, c("Original","Scaled"), pch=c(19,1), cex=.8)
+```
+
+Given the above boxplots it can be seen that the data within each cluster does not move much with the scaling, so we would expect that the clustering should be able to get similar results with the columnwise scaling of SD as without the scaling of SD in part (c). 
+
+

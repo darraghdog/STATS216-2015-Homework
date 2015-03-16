@@ -1,0 +1,152 @@
+---
+title: "STATS216 Homework 4 Q4"
+author: "Darragh Hanley"
+date: "Friday, February 27, 2015"
+output: html_document
+---
+
+#### 4 (a) We are given n = 7 observations in p = 2 dimensions. For each observation, there is an associated class label. Plot or sketch the observations.
+
+Create a data frame with the observations.
+```{r warning=FALSE}
+X1 <- c(3,2,4,1,2,4,4)
+X2 <- c(4,2,4,4,1,3,1)
+Y  <- c(rep("RED", 4),rep("BLUE", 3))
+mydf <- data.frame(X1, X2, Y)
+```
+
+Now lets plot the data
+```{r warning=FALSE}
+plot(X1, X2, col=Y, pch=19, data=mydf)
+```
+
+<br>
+
+#### (b) Plot or sketch the separating hyperplane with maximum margin, and provide the equation for this hyperplane.
+
+The maximal margin hyperplane is the separating hyperplane which is farthest from the training observations. We will find this with the package e1071 which contains the svm function we will use. We then compute the fit of a linear separating hyperplane with maximum margin. Notice that we have to specify a cost parameter, which is a tuning parameter. 
+
+```{r warning=FALSE}
+library(e1071)
+fit.svm = svm(Y ~ ., data = mydf, kernel = "linear", cost = 10, scale = FALSE)
+```
+
+we now leverage the code in the STATS216 Chapter 9 SVM R lab, to extract the coefficients of the hyperplane. 
+
+```{r warning=FALSE}
+# Extract beta_0 and beta_1
+beta0 = fit.svm$rho
+beta = drop(t(fit.svm$coefs) %*% as.matrix(mydf[fit.svm$index,1:2]))
+# Replot, this time with the solid line representing the maximal margin plane.
+plot(X1, X2, col=Y, pch=19, data=mydf)
+abline(beta0/beta[2], -beta[1]/beta[2])
+```
+
+
+The a, b arguments above in abline() represent the intercept and slope, single values in the plot functions.
+```{r warning=FALSE}
+paste("Intercept: ", round(beta0/beta[2],1), ", Slope: ", round(-beta[1]/beta[2],1), sep="")
+
+```
+
+Therefore the formula for this line will take the form : 
+                                        **-0.5 + X1 - X2 = 0**
+
+<br>
+
+#### (c) Describe the classification rule for the maximal margin classifier. It should be something along the lines of "Classify to Red if Beta0 + Beta1 X1 + Beta2 X2 > 0, and classify to Blue otherwise." Provide the values for Beta0, Beta1, and Beta2.
+
+Classify to Red if -0.5 + X1 - X2 < 0 and classify to Blue otherwise. 
+
+$$ \beta_0 = -0.5, \beta_1 = 1, \beta_2 = -1 $$
+
+<br>
+
+#### (d) On your plot or sketch, indicate the margin for the maximal margin hyperplane. How wide is the margin?
+
+Lets plot two dashed lines as the margins of the maximal margin plane.
+```{r warning=FALSE}
+# Replot, this time with the dashed lines representing the margins for the maximal margin hyperplane.
+plot(X1, X2, col=Y, pch=19, data=mydf)
+abline(beta0/beta[2], -beta[1]/beta[2])
+abline((beta0 - 1)/beta[2], -beta[1]/beta[2], lty = 2)
+abline((beta0 + 1)/beta[2], -beta[1]/beta[2], lty = 2)
+```
+
+To find the margin length we compute the smallest distance from any training observation to the given separating hyperplane. This is the same as computing the distance from the dashed margin line to the solid hyperplane. Here we use parallel geometry to get the required margin width. Note the margin width is from the solid line to either of the dashed lines.  
+(See equation in the following link under section "Distance between two parallel lines" : http://en.wikipedia.org/wiki/Parallel_%28geometry%29)
+
+```{r}
+d = abs(beta0/beta[2] - (beta0 + 1)/beta[2]) / sqrt((-beta[1]/beta[2])^2+1)
+names(d) <- "Margin Width"
+d
+```
+
+The maximal margin hyperplane is shown as a solid line. The "Margin Width", seen above, is the distance from the solid line to either of the dashed lines.
+
+<br>
+
+#### (e) Indicate the support vectors for the maximal margin classifier.
+
+
+Highlight the points svm used as support vectors on the data set.
+```{r warning=FALSE}
+# Replot, this time indicating the support vectors for the maximal margin classifier.
+plot(X1, X2, col=Y, pch=19, data=mydf, main="svm() Assigned Support Vectors")
+abline(beta0/beta[2], -beta[1]/beta[2])
+abline((beta0 - 1)/beta[2], -beta[1]/beta[2], lty = 2)
+abline((beta0 + 1)/beta[2], -beta[1]/beta[2], lty = 2)
+points(mydf[fit.svm$index,], pch = 5, cex = 2)
+```
+
+Note the svm fit did not fit the fifth observation (2,1) as a support vector, even though it is on the margin just as the three chosen support vectors. The definition of a support vector is : "A point is a support point if an arbitrarily small perturbation of that point may change the resulting maximal margin hyperplane.".
+Note that the above definition does not require the hyperplane to change under all small perturbations of that point, only that it changes for certain specific perturbations. Note also that under this definition, the determination of support points by computer software may be subject to floating point accuracy issues, as a point may be a support point under this definition but if we move the point by just a hair (caused e.g. by floating point rounding) then it might no longer be a support point.
+Given this I would also mark the fourth point as a support vector as seen below.
+
+```{r warning=FALSE}
+# Replot, this time indicating all support vectors.
+plot(X1, X2, col=Y, pch=19, data=mydf, main="All Support Vectors")
+abline(beta0/beta[2], -beta[1]/beta[2])
+abline((beta0 - 1)/beta[2], -beta[1]/beta[2], lty = 2)
+abline((beta0 + 1)/beta[2], -beta[1]/beta[2], lty = 2)
+points(mydf[fit.svm$index,], pch = 5, cex = 2)
+points(2,1, pch = 5, cex = 2)
+```
+
+<br>
+
+#### (f) Would a slight movement of the seventh observation affect the maximal margin hyperplane? Why or why not?
+
+The seventh point is (4,1). As this point is not a support vector and is quite far from the margins of the separating hyperplane with maximum margin, a slight movement of this would not affect the maximal margin hyperplane. 
+
+<br>
+
+#### (g) Sketch a hyperplane that is not the optimal separating hyperplane, and provide the equation for this hyperplane.
+
+Here we draw separating hyperplane which is not the optimal separating hyberplane.
+
+```{r warning=FALSE}
+# Replot, this time with random separating hyperplane.
+plot(X1, X2, col=Y, pch=19, data=mydf)
+abline(-1.5, 1.3, col="blue",lwd=2)
+```
+
+The equation for this is **-1.5 + 1.3 * X1 - X2 = 0**.
+
+$$ \beta_0 = -1.5, \beta_1 = 1.3, \beta_2 = -1 $$
+
+<br>
+
+#### (h) Draw an additional observation on the plot so that the two classes are no longer separable by a hyperplane.
+
+Plot the original data again, and add an extra point which prevents the two classes from being separable by a hyperplane. We then draw a line which holds all reds to one side of it, using the tightest fit to the red classes. Even with this we cannot avoid this new blue point from being on the red side. 
+Therefore the below points are no longer separable by a linear hyperplane.
+
+
+```{r warning=FALSE}
+# Replot, this time indicating the support vectors for the maximal margin classifier.
+plot(X1, X2, col=Y, pch=19, data=mydf)
+points(2.5, 3, col="blue", pch=19)
+points(2.5, 3, col="blue", pch=5, cex=2)
+abline(0,1, col="grey", lty=2)
+```

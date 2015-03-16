@@ -1,0 +1,182 @@
+---
+title: "Homework 4 Q3"
+author: "Darragh Hanley"
+date: "Monday, March 02, 2015"
+output: word_document
+---
+
+#### 3. You may work in groups up to size 4 on this problem. If you do work in groups, write the names of all your group members on your problem set. Recall the body dataset from problem 4 of Homework 3. In that problem we used PCR and PLSR to predict someone's weight. Here we will re-visit this objective, using bagging and random forests. Start by setting aside 200 observations from your dataset to act as a test set, using the remaining 307 as a training set. Ideally, you would be able to use your code from Homework 3 to select the same test set as you did on that problem.Using the randomForest package in R (hint: see section 8.3.3 in the textbook for guidance), use Bagging and Random Forests to predict the weights in the test set, so that you have two sets of predictions. Then answer the following questions:
+
+
+```{r message=FALSE, warning=FALSE}
+# Place the data set in this directory 
+setwd("C:/Users/think/Google Drive/stats216/Homework 4") 
+load("body.RData")
+# Set our seed, load our library and sample the 200 test data point, the rest we put in train. 
+set.seed(100) 
+# create the index for our test and train set 
+test = sort(sample(1:nrow(X), 200)) 
+train = (1:nrow(X))[-test] 
+# Create a data frame with the predictors and the weight, which is the response. 
+mydf <- data.frame(Y$Weight, X)
+# Create a vector with the test weight observations.
+Weight.test=mydf[-train,"Y.Weight"]
+# The randomForest() function can be used to perform both random forests and bagging. 
+library (randomForest)
+```
+
+Bagging first : The argument mtry=ncol(X) indicates that all X predictors should be considered for each split of the tree in other words, that bagging should be done.
+In both models we pass the train and test set
+
+```{r}
+bag.Weight =randomForest(Y.Weight ~ .,data=mydf ,subset=train, xtest=mydf[test,-1],
+                         ytest=mydf[test,1], mtry=ncol(X), importance =TRUE)
+```
+
+Random Forest : proceeds in exactly the same way, except that we use a smaller value  of the mtry argument. By default, randomForest() uses p/3 variables when building  a random forest of regression trees.
+
+```{r}
+rf.Weight =randomForest(Y.Weight ~ .,data=mydf ,subset=train, xtest=mydf[test,-1],
+                        ytest=mydf[test,1], importance =TRUE)
+```
+
+#### (a) Produce a plot of test MSE (as in Figure 8.8 in the text) as a function of number of trees for Bagging and Random Forests. You should produce one plot with two curves, one corresponding to Bagging and the other to Random Forests. Hint: If you read the documentation for the randomForest() function, you can find a way to obtain the data for both curves with only one call each to the randomForest() function.
+
+The randomForest() function allows us to extract the test mse, if a test set is given (through the xtest or additionally ytest arguments) which we did. Below we extract this using the $test list and pulling the second element of the list, which contais the mse. We create an empty plot and for each model add lines of the mse against the number of trees.
+
+```{r message=FALSE, warning=FALSE}
+plot(1, type="n", xlab="Number of Trees", ylab="Error", xlim=c(0, 500), ylim=c(8, 30), main = "Body Data Set : Test MSE")
+lines(1:500, rf.Weight$test[[2]], col="red")
+lines(1:500, bag.Weight$test[[2]], col="blue")
+legend("topright", c("Random Forest", "Bagging"), col=c("red", "blue"), lwd=2, cex=.7)
+```
+
+
+
+#### (b) Which variables does your random forest identify as most important? How do they compare with the most important variables as identified by Bagging?
+
+Instead of using function varimpplot() to plot the variable importance we shall pull our own plot in order to compare the result of both models against each other.
+
+Lets plot the % increase in MSE
+```{r message=FALSE, warning=FALSE}
+plot(bag.Weight$importance[,1], xaxt='n', xlab="", ylab="% Increase", pch=19, col="blue", main="% Increase in MSE")
+points(rf.Weight$importance[,1], pch=19, col="red")
+abline(v=(seq(0,21,1)), col="lightgray", lty="dotted")
+axis(1, at=1:21, labels=names(X), tick=FALSE, las=2, line=-0.5, cex.axis=0.7)
+legend("topright", c("Random Forest", "Bagging"), col=c("red", "blue"), pch=19, cex=.7)
+```
+
+Now lets look at the the Increase in Node Purity
+```{r message=FALSE, warning=FALSE}
+plot(bag.Weight$importance[,2], xaxt='n', xlab="", ylab="Increase", pch=19, col="blue",
+     main="Increase in Node Purity")
+points(rf.Weight$importance[,2], pch=19, col="red")
+abline(v=(seq(0,21,1)), col="lightgray", lty="dotted")
+axis(1, at=1:21, labels=names(X), tick=FALSE, las=2, line=-0.5, cex.axis=0.7)
+legend("topright", c("Random Forest", "Bagging"), col=c("red", "blue"), pch=19, cex=.7)
+```
+
+By looking at both charts above, we can see in both the Random Forest and Bagging, Waist Girth stands out as the most important variable. However for Bagging the associated importance laid on Waist Girth is much higher. This makes sense as we know Bagging looks at every variable for every split and can tend to let important variable overly dominate. Random forest only chooses a random subset (in our case 1/3) of variables at every split, because of this other variables get to influence the model more. 
+Waist Girth is followed by Chest Girth and then Bicep Girth in each model and measurement. However random forest lays higher importance on these than bagging does. In general the girth measurements are more important than the diameter readings.
+
+
+#### (c) Compare the test error of your random forest (with 500 trees) against the test errors of the three methods you evaluated in problem 4(f) on Homework 3. Does your random forest make better predictions than your predictions from Homework 3? If you did not successfully solve problem 4(f) on Homework 3, you may compare the test error of your random forest against the test errors in the Homework 3 solutions.
+
+Lets recalculate the test errors from 4(f) using the same seed and code. 
+
+```{r message=FALSE, warning=FALSE}
+# Fit the linear regression using the best subset selection 
+set.seed(100) 
+# Output the features which are chosen, when subsetting to 5 features using best subsets load the package 
+library(leaps) 
+library(pls)
+# fit the linear regression based best subset selection, default method is "exhaustive" 
+regfit.full = regsubsets(Y.Weight ~ ., data = mydf[train,], nvmax = 21) 
+# output the summary and extract the best subsets features.
+reg.summary = summary(regfit.full)
+features <- subset(reg.summary$which[9,], reg.summary$which[9,] == TRUE)
+# Fit the three models from HW3 - Best subsets, PCR, PLSR.
+bsubs.mod <- glm(mydf$Y.Weight[train] ~ ., data = mydf[train,reg.summary$which[9,]])
+pcr.mod <- pcr(Y.Weight ~ .,ncomp = 3, data = mydf[train,], scale=TRUE) 
+plsr.mod <- plsr(Y.Weight ~ .,ncomp = 4, data = mydf[train,], scale=TRUE)
+# Calculate the MSE for each model and hold in a vector of results
+mse.all <- vector()
+mse.all[1] <- mean((Weight.test-predict(bsubs.mod, mydf[test,]))^2) 
+mse.all[2] <- mean((Weight.test-predict(pcr.mod, mydf[test,]))^2) 
+mse.all[3] <- mean((Weight.test-predict(plsr.mod, mydf[test,]))^2) 
+# Now we add the Random forest results using 500 trees
+mse.all[4] <- rf.Weight$test[[2]][500]
+# add the names of 
+names(mse.all) <- c("Best subset MSE (9 Features)", "PCR MSE (3 components)",
+                    "PLSR MSE (4 components)", "Random Forest (500 trees)")
+mse.all
+```
+
+we can see above that the Random Forest using 500 trees did not perform as well as the feature selection models used in part 4(f)
+
+
+#### (d) The randomForest() function uses 500 as the default number of trees. For this problem, would it be valuable to include more trees? How can you tell?
+
+To answer this question lets run Random Forest a number of times up to 5000 trees, each time changing the seed. Plot the mean of the mse and see if iterations much larger than 500 produce a better results than 500 iterations. 
+
+For Random Forest, the improvement between 500 and 5000 trees appears in the below plot to be negligible so there would not be significant value in going over 500 trees. In fact as can be seen below the plot the improvement between 400 and 500 trees is nearly as great as the improvement between 500 and 5000 trees. Therefore there is not much value in adding more trees beyond 500. 
+
+
+```{r message=FALSE, warning=FALSE}
+# We shall also reshuffle the train and test data with each seed. 
+set.seed(1)
+n = 5000 # number of trees
+iter = 50 # number of iterations
+mod.mse = matrix(NA,nrow=n, ncol=iter)
+# first lets pull the model data for different seeds.
+for(i in 1:iter){
+    set.seed(100+i)      # change the seed for each itteration
+    test = sort(sample(1:nrow(X), 200)) 
+    train = (1:nrow(X))[-test] 
+    # a random forest of regression trees.
+#    rf.mod =randomForest(Y.Weight ~ .,data=mydf ,subset=train, xtest=mydf[test,-1],
+#                        ytest=mydf[test,1], ntree=n, importance =TRUE)
+#    mod.mse[,i] <- rf.mod$test[[2]]
+}
+
+# Create an empty plot and for each model add lines of the mse against the number of trees.
+#plot(1, type="n", xlab="Number of Trees", ylab="Mean Error", xlim=c(0, n), ylim=c(5, 15), main = "Random Forest over different seeds")
+#lines(1:n, rowMeans(mod.mse), col="red")
+#abline(h=rowMeans(mod.mse)[500],col="blue", lty=2)
+#legend("topright", c("Mean MSE", "Mean MSE, ntree=500"), col=c("red", "blue"), lty=c(1,2), lwd=2, cex=.7)
+```
+
+
+Below we see, for Random Forest, the MSE at 500 trees, MSE at 5000 trees, and MSE improvement from 500 to 5000 trees. As can be seen the improvement is relatively negligible.
+
+```{r}
+c(mod.mse[500], mod.mse[5000],(mod.mse[500] - mod.mse[5000]))
+```
+
+Below we see, for Random Forest, the MSE at 300 trees, MSE at 500 trees, and MSE improvement from 400 to 500 trees. Here we see the improvement between 400 and 500 trees is that same as the improvement from 500 to 5000 trees.
+
+```{r}
+c(mod.mse[400], mod.mse[500],(mod.mse[400] - mod.mse[500]))
+```
+
+Lets check for bagging also call to the function (here we will use the average of 10 calls for performance) to see if results are the same. And we see the results are quite similar as before. Only a very marginal improvement between 500 and 5000 trees so it is not very valuable.
+
+```{r}
+mod.mse.bag = matrix(NA,nrow=n, ncol=10)
+# first lets pull the model data for different seeds.
+for(i in 1:10){
+    set.seed(100+i)      # change the seed for each itteration
+    test = sort(sample(1:nrow(X), 200)) 
+    train = (1:nrow(X))[-test] 
+    # a bagging of regression trees using all variables
+     bag.mod =randomForest(Y.Weight ~ .,data=mydf ,subset=train, xtest=mydf[test,-1],
+                         ytest=mydf[test,1], ntree=n, mtry=ncol(X), importance =F)
+     mod.mse.bag[,i] <- bag.mod$test[[2]]
+}
+mod.mse <- rowMeans(mod.mse.bag)
+bag.mse <- c(mod.mse[500],mod.mse[5000], (mod.mse[500] - mod.mse[5000]))
+names(bag.mse) <- c("mse @ 500", "mse @ 5000", "delta mse 500 - 5000")
+bag.mse
+```
+
+
